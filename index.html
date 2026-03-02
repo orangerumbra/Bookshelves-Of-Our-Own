@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Bookshelves Of Our Own | 我们自己的书架</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+</head>
+<body>
+
+<header class="main-header">
+    <h1>Bookshelves Of Our Own</h1>
+    
+    <div class="search-container">
+        <div class="search-basic">
+            <input type="text" id="globalSearch" placeholder="输入书名或作者搜索..." oninput="runSearch()">
+            <button onclick="toggleAdvanced()" class="btn-outline">高级搜索</button>
+            <button class="btn-stat" onclick="showStats()">📊 统计报告</button>
+        </div>
+        <div id="advancedSearch" class="search-advanced hidden">
+            <input type="text" id="searchAuthor" placeholder="作者名" oninput="runSearch()">
+            <input type="number" id="searchScore" placeholder="最低评分" oninput="runSearch()">
+            <input type="text" id="searchThought" placeholder="感想关键词" oninput="runSearch()">
+        </div>
+    </div>
+
+    <div class="global-actions">
+        <button class="btn-primary" onclick="addShelf()">+ 新建书架</button>
+        <button onclick="exportJSON()">导出 JSON</button>
+        <input type="file" id="importFile" hidden onchange="importJSON(event)">
+        <button onclick="document.getElementById('importFile').click()">导入数据</button>
+    </div>
+</header>
+
+<main id="library" class="library-grid"></main>
+
+<div id="bookModal" class="modal hidden">
+    <div class="modal-content">
+        <div id="viewMode">
+            <h2 id="viewTitle">书名</h2>
+            <div class="book-meta">
+                <span id="viewAuthor">作者</span> | <span id="viewCountry">国籍</span> | <span id="viewPub">出版社</span>
+            </div>
+            <div class="book-score">评分: <span id="viewScore">0</span></div>
+            <div class="book-tags" id="viewTags"></div>
+            <hr>
+            <div class="book-thoughts" id="viewThoughts">感想内容...</div>
+            <div class="modal-footer">
+                <button onclick="switchToEdit()" class="btn-primary">编辑信息</button>
+                <button onclick="closeModal()" class="btn-text">关闭</button>
+            </div>
+        </div>
+
+        <div id="editMode" class="hidden">
+            <h2 id="editHeader">编辑书籍</h2>
+            <input type="text" id="inputTitle" placeholder="书籍名称">
+            <div class="input-row">
+                <input type="text" id="inputAuthor" placeholder="作者">
+                <input type="text" id="inputCountry" placeholder="国籍">
+            </div>
+            <input type="text" id="inputPub" placeholder="出版社">
+            <div class="input-row">
+                <select id="inputStatus">
+                    <option value="unread">未读</option>
+                    <option value="reading">在读</option>
+                    <option value="finished">已读</option>
+                </select>
+                <input type="number" id="inputScore" min="0" max="10" placeholder="评分(0-10)">
+                <input type="color" id="inputColor" title="书脊颜色">
+            </div>
+            <input type="text" id="inputTags" placeholder="标签 (英文逗号分隔)">
+            <textarea id="inputThoughts" placeholder="写下你的阅读感想..."></textarea>
+            <div class="modal-footer">
+                <button onclick="saveBookChange()" class="btn-primary">保存</button>
+                <button onclick="handleCancel()" class="btn-text">取消</button>
+                <button onclick="deleteBook()" class="btn-danger">删除书籍</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
