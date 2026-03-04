@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 <nav class="top-nav">
@@ -30,8 +31,20 @@
       </div>
     </div>
     <div id="authArea"></div>
-    <button class="btn btn-secondary btn-sm" id="importBtn">↑ 导入</button>
-    <button class="btn btn-secondary btn-sm" id="exportBtn">↓ 导出</button>
+    <div class="dropdown" id="importDrop">
+      <button class="btn btn-secondary btn-sm" onclick="toggleDrop('importDrop')">↑ 导入 ▾</button>
+      <div class="dropdown-menu">
+        <button class="dropdown-item" onclick="$('impFile').click();closeDrop()">JSON 格式</button>
+        <button class="dropdown-item" onclick="$('impXlsx').click();closeDrop()">Excel 表格</button>
+      </div>
+    </div>
+    <div class="dropdown" id="exportDrop">
+      <button class="btn btn-secondary btn-sm" onclick="toggleDrop('exportDrop')">↓ 导出 ▾</button>
+      <div class="dropdown-menu">
+        <button class="dropdown-item" id="exportBtn">JSON 格式</button>
+        <button class="dropdown-item" onclick="exportXlsx();closeDrop()">Excel 表格</button>
+      </div>
+    </div>
     <button class="btn btn-ghost btn-sm" id="saveBtn" title="保存 (⌘S)">💾</button>
   </div>
 </nav>
@@ -71,6 +84,7 @@
 </div>
 <div class="toast-box" id="tBox"></div>
 <input type="file" id="impFile" accept=".json" style="display:none">
+<input type="file" id="impXlsx" accept=".xlsx,.xls,.csv" style="display:none">
 <input type="file" id="covFile" accept="image/*" style="display:none">
 
 <div class="confirm-overlay" id="cfmOvl"><div class="confirm-box"><div class="confirm-msg" id="cfmMsg"></div><div class="confirm-btns"><button class="btn btn-ghost" id="cfmNo">取消</button><button class="btn btn-danger" id="cfmYes">确定</button></div></div></div>
