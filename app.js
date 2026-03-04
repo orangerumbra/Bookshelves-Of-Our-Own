@@ -25,6 +25,30 @@ function esc(s){const d=document.createElement('div');d.textContent=s||'';return
 function stars(n){return '★'.repeat(n)+'☆'.repeat(5-n)}
 function isLight(h){if(!h)return false;h=h.replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];const r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16);return(r*299+g*587+b*114)/1000>150}
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent='✓ '+m;$('tBox').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300)},2500)}
+
+// ─── BOOK CODE GENERATOR ───
+function genCode(shelfName,layerName){
+  // Format: {书架缩写}{层号}-{序号}  e.g. 文学1-001
+  const prefix=shelfName.slice(0,2);
+  // Extract layer number from name, fallback to 1
+  const lm=layerName.match(/(\d+)/);const ln=lm?lm[1]:'1';
+  // Find max existing seq for this prefix+layer
+  const pat=prefix+ln+'-';
+  let max=0;
+  allBooks().forEach(b=>{if(b.code&&b.code.startsWith(pat)){const n=parseInt(b.code.slice(pat.length));if(n>max)max=n}});
+  return pat+String(max+1).padStart(3,'0');
+}
+function ensureCodes(){
+  // Auto-assign codes to all books missing one
+  lib.shelves.forEach(s=>s.layers.forEach(l=>l.books.forEach(b=>{
+    if(!b.code)b.code=genCode(s.name,l.name);
+  })));
+}
+
+// ─── DROPDOWN TOGGLE ───
+function toggleDrop(id){const el=$(id);document.querySelectorAll('.dropdown.open').forEach(d=>{if(d.id!==id)d.classList.remove('open')});el.classList.toggle('open')}
+function closeDrop(){document.querySelectorAll('.dropdown.open').forEach(d=>d.classList.remove('open'))}
+document.addEventListener('click',e=>{if(!e.target.closest('.dropdown'))closeDrop()});
 async function save() { await saveToCloud(); }
 function load(){try{const d=localStorage.getItem('il-data');if(d)lib=JSON.parse(d)}catch(e){}
 if(!lib.shelves||!lib.shelves.length){lib={shelves:[
@@ -108,12 +132,13 @@ async function loadFromCloud() {
           id:b.id, title:b.title, author:b.author, nationality:b.nationality,
           publisher:b.publisher, tags:b.tags||[], notes:b.notes, rating:b.rating,
           coverType:b.cover_type, coverColor:b.cover_color, coverImage:b.cover_image_url,
-          status:b.status, dateAdded:b.date_added, dateFinished:b.date_finished
+          status:b.status, dateAdded:b.date_added, dateFinished:b.date_finished,
+          code:b.code||''
         }))
       }))
     }));
-    render(); toast('已从云端同步');
-  } catch(e) { console.error(e); load(); render(); toast('云端同步失败，使用本地数据'); }
+    render(); ensureCodes(); toast('已从云端同步');
+  } catch(e) { console.error(e); load(); ensureCodes(); render(); toast('云端同步失败，使用本地数据'); }
 }
 
 async function saveToCloud() {
@@ -134,7 +159,8 @@ async function saveToCloud() {
       publisher:b.publisher||'', tags:b.tags||[], notes:b.notes||'', rating:b.rating||0,
       cover_type:b.coverType||'color', cover_color:b.coverColor||'#C8956C',
       cover_image_url:b.coverImage||'', status:b.status||'unread',
-      date_added:b.dateAdded, date_finished:b.dateFinished||null, sort_order:i
+      date_added:b.dateAdded, date_finished:b.dateFinished||null, sort_order:i,
+      code:b.code||''
     }))));
     
     for(let i=0;i<br.length;i+=500){
@@ -226,7 +252,7 @@ function showTip(e,bid){
   const info=findBook(bid);if(!info)return;const b=info.b;
   const t=$('tip');
   let h='<div class="tooltip-title">'+esc(b.title)+'</div>';
-  h+='<div class="tooltip-author">'+esc(b.author||'')+(b.nationality?' · '+esc(b.nationality):'')+'</div>';
+  h+='<div class="tooltip-author">'+esc(b.author||'')+(b.nationality?' · '+esc(b.nationality):'')+(b.code?' <span style="opacity:.5;font-size:9px;font-family:var(--fm)">'+esc(b.code)+'</span>':'')+'</div>';
   h+='<div class="tooltip-rating">'+stars(b.rating||0)+'</div>';
   if(b.tags&&b.tags.length){h+='<div class="tooltip-tags">';b.tags.forEach((tg,i)=>h+='<span class="tooltip-tag '+(i<1?'primary':'')+'">'+esc(tg)+'</span>');h+='</div>';}
   if(b.notes)h+='<div class="tooltip-notes">'+esc(b.notes)+'</div>';
@@ -255,6 +281,7 @@ function openDet(bid,sid,lid){
   ['unread','reading','read'].forEach(st=>{const c=b.status===st?' a-'+st:'';h+='<button class="status-opt'+c+'" onclick="chgSt(\''+bid+'\',\''+st+'\')">'+SM[st]+'</button>';});
   h+='</div>';
   h+='<div class="detail-meta">';
+  h+='<div class="detail-meta-item"><label>编码</label><span>'+esc(b.code||'-')+'</span></div>';
   h+='<div class="detail-meta-item"><label>国籍</label><span>'+esc(b.nationality||'-')+'</span></div>';
   h+='<div class="detail-meta-item"><label>出版社</label><span>'+esc(b.publisher||'-')+'</span></div>';
   h+='<div class="detail-meta-item"><label>添加日期</label><span>'+esc(b.dateAdded||'-')+'</span></div>';
@@ -275,7 +302,8 @@ function showForm(bk){
   const edit=!!bk;
   $('mTtl').textContent=edit?'编辑书籍':'添加书籍';
   _ct=bk?.coverType||'color';_cc=bk?.coverColor||'#C8956C';_ci=bk?.coverImage||'';_rt=bk?.rating||0;_st=bk?.status||'unread';
-  let h='<div class="form-group"><label class="form-label">书名 *</label><input class="form-input" id="fT" value="'+esc(bk?.title||'')+'"></div>';
+  let h='<div class="form-row"><div class="form-group" style="flex:2"><label class="form-label">书名 *</label><input class="form-input" id="fT" value="'+esc(bk?.title||'')+'"></div>';
+  h+='<div class="form-group" style="flex:1"><label class="form-label">编码</label><input class="form-input" id="fCode" value="'+esc(bk?.code||'')+'" placeholder="留空自动生成"><div class="form-hint">如 文学1-001</div></div></div>';
   h+='<div class="form-row"><div class="form-group"><label class="form-label">作者</label><input class="form-input" id="fA" value="'+esc(bk?.author||'')+'"></div>';
   h+='<div class="form-group"><label class="form-label">国籍</label><input class="form-input" id="fN" value="'+esc(bk?.nationality||'')+'"></div></div>';
   h+='<div class="form-group"><label class="form-label">出版社</label><input class="form-input" id="fP" value="'+esc(bk?.publisher||'')+'"></div>';
@@ -306,13 +334,18 @@ function setR(n){_rt=n;document.querySelectorAll('#fR .star').forEach((s,i)=>s.c
 function setSt(s){_st=s;document.querySelectorAll('#fSt .status-opt').forEach(el=>{el.className='status-opt';if(el.textContent===SM[s])el.classList.add('a-'+s)})}
 function saveBk(editId){
   const title=$('fT').value.trim();if(!title){toast('请输入书名');return}
+  const codeVal=$('fCode')?$('fCode').value.trim():'';
   const bk={id:editId||uid(),title,author:$('fA').value.trim(),nationality:$('fN').value.trim(),publisher:$('fP').value.trim(),
     tags:$('fTg').value.split(/[,，]/).map(t=>t.trim()).filter(Boolean),notes:$('fNo').value.trim(),
     rating:_rt,coverType:_ct,coverColor:_cc,coverImage:_ci,status:_st,
+    code:codeVal||(editId&&findBook(editId)?.b.code)||'',
     dateAdded:editId?(findBook(editId)?.b.dateAdded||new Date().toISOString().slice(0,10)):new Date().toISOString().slice(0,10),
     dateFinished:_st==='read'?(editId&&findBook(editId)?.b.dateFinished||new Date().toISOString().slice(0,10)):''};
   if(editId){for(const s of lib.shelves)for(const l of s.layers)for(let i=0;i<l.books.length;i++)if(l.books[i].id===editId)l.books[i]=bk;}
-  else{const s=lib.shelves.find(x=>x.id===curSid);const l=s?.layers.find(x=>x.id===curLid);if(l)l.books.push(bk)}
+  else{
+    const s=lib.shelves.find(x=>x.id===curSid);const l=s?.layers.find(x=>x.id===curLid);
+    if(l){if(!bk.code)bk.code=genCode(s.name,l.name);l.books.push(bk)}
+  }
   closeModal();save();render();toast(editId?'已更新':'已添加: '+title);
 }
 //支持异步上传
@@ -412,10 +445,98 @@ function runAdv(){
 function clearAdv(){['aT','aA','aN','aTg'].forEach(id=>$(id).value='');$('aR').value='0';$('aS').value='';searchRes=null;render()}
 document.addEventListener('click',e=>{if(!$('advPanel').contains(e.target)&&e.target!==$('advBtn'))$('advPanel').classList.remove('open')});
 
-// ─── IMPORT / EXPORT ───
-$('exportBtn').onclick=()=>{const d=JSON.stringify(lib,null,2);const b=new Blob([d],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='library-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(u);toast('已导出')};
-$('importBtn').onclick=()=>$('impFile').click();
-$('impFile').onchange=function(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async ev=>{try{const d=JSON.parse(ev.target.result);if(d.shelves&&Array.isArray(d.shelves)){if(await cfm('导入将合并到现有书单，继续？')){d.shelves.forEach(s=>{const ex=lib.shelves.find(es=>es.name===s.name);if(ex){s.layers.forEach(l=>{const el=ex.layers.find(x=>x.name===l.name);if(el){l.books.forEach(b=>{if(!el.books.find(x=>x.title===b.title&&x.author===b.author))el.books.push({...b,id:uid()})})}else ex.layers.push({...l,id:uid(),books:l.books.map(b=>({...b,id:uid()}))})})}else lib.shelves.push({...s,id:uid(),layers:s.layers.map(l=>({...l,id:uid(),books:l.books.map(b=>({...b,id:uid()}))}))})});save();render();toast('导入成功')}}else toast('无效格式')}catch(err){toast('解析失败')}};r.readAsText(f);this.value=''};
+// ─── IMPORT / EXPORT (JSON) ───
+$('exportBtn').onclick=()=>{const d=JSON.stringify(lib,null,2);const b=new Blob([d],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='library-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(u);closeDrop();toast('JSON 已导出')};
+$('impFile').onchange=function(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async ev=>{try{const d=JSON.parse(ev.target.result);if(d.shelves&&Array.isArray(d.shelves)){if(await cfm('导入将合并到现有书单，继续？')){d.shelves.forEach(s=>{const ex=lib.shelves.find(es=>es.name===s.name);if(ex){s.layers.forEach(l=>{const el=ex.layers.find(x=>x.name===l.name);if(el){l.books.forEach(b=>{if(!el.books.find(x=>x.title===b.title&&x.author===b.author))el.books.push({...b,id:uid()})})}else ex.layers.push({...l,id:uid(),books:l.books.map(b=>({...b,id:uid()}))})})}else lib.shelves.push({...s,id:uid(),layers:s.layers.map(l=>({...l,id:uid(),books:l.books.map(b=>({...b,id:uid()}))}))})});ensureCodes();save();render();toast('导入成功')}}else toast('无效格式')}catch(err){toast('解析失败')}};r.readAsText(f);this.value=''};
+
+// ─── EXPORT EXCEL ───
+function exportXlsx(){
+  ensureCodes(); // make sure every book has a code
+  const rows=[];
+  const SMR={unread:'未读',reading:'在读',read:'已读'};
+  lib.shelves.forEach(s=>s.layers.forEach(l=>l.books.forEach(b=>{
+    rows.push({
+      '编码':b.code||'','书名':b.title||'','作者':b.author||'','国籍':b.nationality||'',
+      '出版社':b.publisher||'','标签':(b.tags||[]).join('、'),'评分':b.rating||0,
+      '阅读状态':SMR[b.status]||'未读','封面颜色':b.coverColor||'','封面图片':b.coverImage||'',
+      '阅读感想':b.notes||'','添加日期':b.dateAdded||'','读完日期':b.dateFinished||'',
+      '书架':s.name,'层':l.name
+    });
+  })));
+  if(!rows.length){toast('书单为空');return}
+  const ws=XLSX.utils.json_to_sheet(rows);
+  // Column widths
+  ws['!cols']=[{wch:12},{wch:24},{wch:14},{wch:8},{wch:16},{wch:20},{wch:6},{wch:8},{wch:10},{wch:40},{wch:30},{wch:12},{wch:12},{wch:10},{wch:10}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'书单');
+  XLSX.writeFile(wb,'library-'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Excel 已导出');
+}
+
+// ─── IMPORT EXCEL ───
+$('impXlsx').onchange=async function(e){
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const buf=await f.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws);
+    if(!rows.length){toast('Excel 为空');this.value='';return}
+    if(!await cfm('将导入 '+rows.length+' 条记录，合并到现有书单？')){this.value='';return}
+    const SMI={'未读':'unread','在读':'reading','已读':'read'};
+    let added=0,skipped=0;
+    rows.forEach(row=>{
+      const title=(row['书名']||'').toString().trim();
+      if(!title){skipped++;return}
+      const shelfName=(row['书架']||'默认').toString().trim();
+      const layerName=(row['层']||'第一层').toString().trim();
+      const author=(row['作者']||'').toString().trim();
+      // Find or create shelf
+      let shelf=lib.shelves.find(s=>s.name===shelfName);
+      if(!shelf){shelf={id:uid(),name:shelfName,expanded:false,layers:[]};lib.shelves.push(shelf)}
+      // Find or create layer
+      let layer=shelf.layers.find(l=>l.name===layerName);
+      if(!layer){layer={id:uid(),name:layerName,books:[]};shelf.layers.push(layer)}
+      // Check duplicate
+      if(layer.books.find(b=>b.title===title&&b.author===author)){skipped++;return}
+      // Parse tags
+      const tagStr=(row['标签']||'').toString().trim();
+      const tags=tagStr?tagStr.split(/[,，、;；]/).map(t=>t.trim()).filter(Boolean):[];
+      // Parse rating
+      let rating=parseInt(row['评分'])||0;if(rating<0)rating=0;if(rating>5)rating=5;
+      // Parse status
+      const statusStr=(row['阅读状态']||'').toString().trim();
+      const status=SMI[statusStr]||'unread';
+      // Parse dates
+      let dateAdded=(row['添加日期']||'').toString().trim();
+      let dateFinished=(row['读完日期']||'').toString().trim();
+      // Handle Excel date serial numbers
+      if(dateAdded&&!isNaN(Number(dateAdded))){const d=XLSX.SSF.parse_date_code(Number(dateAdded));dateAdded=d?`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`:new Date().toISOString().slice(0,10)}
+      if(dateFinished&&!isNaN(Number(dateFinished))){const d=XLSX.SSF.parse_date_code(Number(dateFinished));dateFinished=d?`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`:''}
+      if(!dateAdded)dateAdded=new Date().toISOString().slice(0,10);
+      // Build book
+      const bk={
+        id:uid(),title,author,
+        nationality:(row['国籍']||'').toString().trim(),
+        publisher:(row['出版社']||'').toString().trim(),
+        tags,notes:(row['阅读感想']||'').toString().trim(),
+        rating,status,
+        coverType:((row['封面图片']||'').toString().trim())?'image':'color',
+        coverColor:(row['封面颜色']||'#C8956C').toString().trim(),
+        coverImage:(row['封面图片']||'').toString().trim(),
+        code:(row['编码']||'').toString().trim(),
+        dateAdded,dateFinished
+      };
+      // Auto-generate code if missing
+      if(!bk.code)bk.code=genCode(shelfName,layerName);
+      layer.books.push(bk);
+      added++;
+    });
+    save();render();
+    toast('导入完成: '+added+' 本新增'+(skipped?', '+skipped+' 条跳过':''));
+  }catch(err){console.error(err);toast('Excel 解析失败: '+err.message)}
+  this.value='';
+};
 
 // ─── SAVE ───
 $('saveBtn').onclick=save;$('addShelfBtn').onclick=addShelf;
@@ -464,7 +585,8 @@ document.onkeydown=function(e){
 
 // ─── INIT ───
 function initApp() {
-  load(); // 优先加载本地数据提升速度
+  load();
+  ensureCodes(); // 为已有书籍补充编码
   render();
   updateAuthUI();
 }
